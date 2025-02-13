@@ -1,0 +1,51 @@
+import pandas as pd
+import numpy as np
+import os
+import requests
+import pybaseball as pyb, warnings
+import unidecode
+from bs4 import BeautifulSoup, Comment
+warnings.filterwarnings('ignore')
+
+def dropUnnamed(df):
+  df = df.loc[:, ~df.columns.str.contains('^Unnamed')]
+  return(df)
+
+idlookup_df = pd.read_csv('/Users/Alex Maggard/OneDrive/Desktop/RoyalsDashboards/IDLookupTable.csv')
+idlookup_df = dropUnnamed(idlookup_df)
+
+p_lookup_dict = dict(zip(idlookup_df.MLBID, idlookup_df.PLAYERNAME))
+
+def loadSav(startdate, enddate):
+  # format = YYYY-MM-DD
+  sav = pyb.statcast(start_dt=startdate, end_dt=enddate)
+  sav['BatterName'] = sav['batter'].map(p_lookup_dict)
+  sav['player_name'] = sav['pitcher'].map(p_lookup_dict)
+  #print('{} Rows Imported'.format(str(len(sav))))
+  return(sav)
+
+#sav1 = loadSav('2024-03-28','2024-04-07')
+sav1 = loadSav('2024-03-28','2024-04-07')
+
+#print(sav1.shape)
+
+print(sav1.columns)
+
+sav1 = sav1.sort_values(by=['game_pk','game_date','inning','at_bat_number','pitch_number'])
+
+Ragans = sav1[(sav1['player_name']=='Cole Ragans')]
+
+Ragans_Year2Date = Ragans[['game_pk','player_name','pitcher','inning','at_bat_number','pitch_number','BatterName','pitch_name','pitch_type','release_speed','balls','strikes','description','events']]
+
+Ragans_Year2Date['PitchesThrown'] = 1
+
+Ragans_Year2Date['pitch_name'].value_counts()
+
+pitch_type_counts = Ragans_Year2Date.groupby(['player_name','pitch_name'],as_index=False)['PitchesThrown'].sum()
+pitch_type_counts
+
+pitch_type_counts['Pitcher'] = pitch_type_counts['player_name']
+pitch_type_counts['Total Pitches'] = pitch_type_counts['PitchesThrown'].sum()
+pitch_type_counts['Usage'] = pitch_type_counts['PitchesThrown']/pitch_type_counts['Total Pitches']
+pitch_type_counts['Usage %'] = round(pitch_type_counts['Usage'],3)
+pitch_type_counts
